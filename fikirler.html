@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fikir Notebook</title>
+<style>
+  * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  body { max-width: 800px; margin: 2rem auto; padding: 0 1rem; background: #fafafa; }
+  h1 { font-size: 1.5rem; margin-bottom: 1rem; color: #333; }
+  .form-group { display: grid; gap: 0.5rem; margin-bottom: 1rem; }
+  .row { display: grid; grid-template-columns: 140px 1fr; gap: 0.5rem; align-items: start; }
+  label { font-size: 0.85rem; color: #666; font-weight: 500; }
+  input[type="date"], input[type="text"] { padding: 0.6rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem; background: white; }
+  input[type="date"] { width: 140px; }
+  textarea { width: 100%; min-height: 100px; padding: 0.6rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem; resize: vertical; font-family: inherit; }
+  button { padding: 0.7rem 1.2rem; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; font-weight: 500; transition: opacity 0.2s; }
+  button:hover { opacity: 0.9; }
+  .btn-primary { background: #2563eb; color: white; }
+  .btn-secondary { background: #e5e7eb; color: #374151; margin-left: 0.5rem; }
+  .btn-danger { background: #ef4444; color: white; font-size: 0.8rem; padding: 0.4rem 0.6rem; }
+  table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #eee; font-size: 0.9rem; }
+  th { background: #f9fafb; font-weight: 600; color: #374151; position: sticky; top: 0; }
+  tr:hover { background: #f9fafb; }
+  .idea-col { font-weight: 500; color: #111; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .desc-col { max-width: 350px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #4b5563; }
+  .date-col { white-space: nowrap; color: #6b7280; font-size: 0.85rem; }
+  .actions { white-space: nowrap; }
+  .empty { text-align: center; padding: 3rem; color: #9ca3af; }
+  .toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .search-box { flex: 1; min-width: 200px; padding: 0.5rem; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; }
+  .count { color: #6b7280; font-size: 0.85rem; margin-top: 0.5rem; }
+  @media (max-width: 600px) {
+    .row { grid-template-columns: 1fr; }
+    input[type="date"] { width: 100%; }
+    th:nth-child(4), td:nth-child(4) { display: none; }
+  }
+</style>
+</head>
+<body>
+<h1>💡 Fikir Notebook</h1>
+
+<div class="form-group">
+  <div class="row">
+    <label>Tarih</label>
+    <input type="date" id="dateInput">
+  </div>
+  <div class="row">
+    <label>Fikir</label>
+    <input type="text" id="ideaInput" placeholder="Kısa başlık..." maxlength="120">
+  </div>
+  <div class="row">
+    <label>Açıklama</label>
+    <textarea id="descInput" placeholder="Detaylar..."></textarea>
+  </div>
+  <div>
+    <button class="btn-primary" onclick="saveIdea()">Kaydet</button>
+    <button class="btn-secondary" onclick="clearForm()">Temizle</button>
+  </div>
+</div>
+
+<div class="toolbar">
+  <input type="text" class="search-box" id="searchInput" placeholder="🔍 Ara (fikir, açıklama, tarih)..." oninput="renderTable()">
+  <button class="btn-secondary" onclick="exportCSV()">📥 CSV İndir</button>
+  <button class="btn-secondary" onclick="importCSV()">📤 CSV Yükle</button>
+  <button class="btn-danger" onclick="clearAll()">Tümünü Sil</button>
+</div>
+
+<div class="count" id="countEl"></div>
+
+<table id="table">
+  <thead>
+    <tr>
+      <th style="width: 120px;">Tarih</th>
+      <th>Fikir</th>
+      <th>Açıklama</th>
+      <th style="width: 80px;">İşlem</th>
+    </tr>
+  </thead>
+  <tbody id="tbody"></tbody>
+</table>
+
+<input type="file" id="fileInput" accept=".csv" style="display:none" onchange="handleFileImport(event)">
+
+<script>
+const STORAGE_KEY = 'fikirler_v1';
+let ideas = [];
+
+function load() {
+  const data = localStorage.getItem(STORAGE_KEY);
+  if (data) ideas = JSON.parse(data);
+  if (!document.getElementById('dateInput').value) {
+    document.getElementById('dateInput').valueAsDate = new Date();
+  }
+  renderTable();
+}
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(ideas));
+}
+
+function saveIdea() {
+  const date = document.getElementById('dateInput').value;
+  const idea = document.getElementById('ideaInput').value.trim();
+  const desc = document.getElementById('descInput').value.trim();
+  if (!idea) return alert('Fikir boş olamaz');
+  ideas.unshift({ date: date || new Date().toISOString().split('T')[0], idea, desc });
+  save();
+  clearForm();
+  renderTable();
+}
+
+function clearForm() {
+  document.getElementById('ideaInput').value = '';
+  document.getElementById('descInput').value = '';
+  document.getElementById('ideaInput').focus();
+}
+
+function deleteIdea(index) {
+  if (confirm('Silinsin mi?')) {
+    ideas.splice(index, 1);
+    save();
+    renderTable();
+  }
+}
+
+function clearAll() {
+  if (ideas.length && confirm('TÜM KAYITLAR SİLİNECEK. Emin misiniz?')) {
+    ideas = [];
+    save();
+    renderTable();
+  }
+}
+
+function exportCSV() {
+  if (!ideas.length) return alert('Kayıt yok');
+  const header = 'Tarih,Fikir,Açıklama\n';
+  const rows = ideas.map(i => `${i.date},"${i.idea.replace(/"/g, '""')}","${i.desc.replace(/"/g, '""')}"`).join('\n');
+  const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `fikirler_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importCSV() {
+  document.getElementById('fileInput').click();
+}
+
+function handleFileImport(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    const text = ev.target.result;
+    const lines = text.trim().split('\n');
+    if (lines[0].toLowerCase().includes('tarih') && lines[0].includes('fikir')) lines.shift();
+    let imported = 0;
+    for (const line of lines) {
+      const match = line.match(/^([^,]+),"(.*?)","(.*?)"$/);
+      if (match) {
+        ideas.unshift({ date: match[1], idea: match[2].replace(/""/g, '"'), desc: match[3].replace(/""/g, '"') });
+        imported++;
+      }
+    }
+    save();
+    renderTable();
+    alert(`${imported} kayıt yüklendi`);
+    e.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function renderTable() {
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const tbody = document.getElementById('tbody');
+  const filtered = ideas.filter(i =>
+    i.date.includes(search) ||
+    i.idea.toLowerCase().includes(search) ||
+    i.desc.toLowerCase().includes(search)
+  );
+  document.getElementById('countEl').textContent = `${filtered.length} / ${ideas.length} kayıt`;
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty">Kayıt yok</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filtered.map((item, idx) => `
+    <tr>
+      <td class="date-col">${item.date}</td>
+      <td class="idea-col" title="${item.idea}">${item.idea}</td>
+      <td class="desc-col" title="${item.desc}">${item.desc || '-'}</td>
+      <td class="actions"><button class="btn-danger" onclick="deleteIdea(${ideas.indexOf(item)})">Sil</button></td>
+    </tr>
+  `).join('');
+}
+
+load();
+</script>
+</body>
+</html>
